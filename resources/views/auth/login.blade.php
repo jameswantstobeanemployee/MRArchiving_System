@@ -309,7 +309,6 @@
 
       <div class="form-header">
         <h1>Welcome!</h1>
-        <p>New here? <a href="#">Create an account</a></p>
       </div>
 
       {{-- Laravel validation errors --}}
