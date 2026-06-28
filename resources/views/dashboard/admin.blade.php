@@ -1,0 +1,633 @@
+@extends('layouts.app')
+@section('title', 'Admin Dashboard')
+
+@section('content')
+
+{{-- Page Header --}}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Admin Dashboard</h1>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:3px;">
+            System overview and administrative controls
+            &mdash; {{ now()->format('l, F j, Y') }}
+        </p>
+    </div>
+    <div class="d-flex gap-1">
+        <a href="{{ route('charts.create') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Archive Chart
+        </a>
+        <a href="{{ route('admin.users.create') }}" class="btn btn-secondary">
+            <i class="fas fa-user-plus"></i> Add User
+        </a>
+        <a href="{{ route('admin.storage.create') }}" class="btn btn-secondary">
+            <i class="fas fa-hdd"></i> Add Drive
+        </a>
+    </div>
+</div>
+
+{{-- Alert Banners --}}
+@if($overdue_checkouts > 0)
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-circle"></i>
+    <div>
+        <strong>{{ $overdue_checkouts }} chart{{ $overdue_checkouts !== 1 ? 's' : '' }} overdue</strong>
+        &mdash; immediate attention required.
+        <a href="{{ route('checkout.index') }}?filter=overdue"
+           style="margin-left:8px; color:inherit; font-weight:600; text-decoration:underline;">
+            View all &rarr;
+        </a>
+    </div>
+</div>
+@endif
+
+@if($near_full_boxes > 0)
+<div class="alert alert-warning">
+    <i class="fas fa-box"></i>
+    <div>
+        <strong>{{ $near_full_boxes }} box{{ $near_full_boxes !== 1 ? 'es' : '' }} near full capacity</strong>
+        &mdash; consider redistributing charts or adding new storage.
+    </div>
+</div>
+@endif
+
+@if($expiring_charts > 0)
+<div class="alert alert-info">
+    <i class="fas fa-calendar-alt"></i>
+    <div>
+        <strong>{{ $expiring_charts }} chart{{ $expiring_charts !== 1 ? 's' : '' }} expiring within 30 days</strong>
+        &mdash; review retention policies and prepare for disposition.
+    </div>
+</div>
+@endif
+
+{{-- Stats Grid --}}
+<div class="stats-grid">
+    <div class="stat-card info">
+        <div class="stat-icon"><i class="fas fa-archive"></i></div>
+        <div class="stat-title">Total Charts</div>
+        <div class="stat-value">{{ number_format($total_charts) }}</div>
+        <div class="stat-trend"><i class="fas fa-circle-dot"></i> Archived records</div>
+    </div>
+
+    <div class="stat-card {{ $total_checked_out > 0 ? 'warning' : 'success' }}">
+        <div class="stat-icon"><i class="fas fa-exchange-alt"></i></div>
+        <div class="stat-title">Checked Out</div>
+        <div class="stat-value">{{ number_format($total_checked_out) }}</div>
+        <div class="stat-trend"><i class="fas fa-circle-dot"></i> In circulation</div>
+    </div>
+
+    <div class="stat-card {{ $overdue_checkouts > 0 ? 'danger' : 'success' }}">
+        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        <div class="stat-title">Overdue</div>
+        <div class="stat-value">{{ number_format($overdue_checkouts) }}</div>
+        <div class="stat-trend">
+            <i class="fas fa-circle-dot"></i>
+            {{ $overdue_checkouts > 0 ? 'Needs attention' : 'All on time' }}
+        </div>
+    </div>
+
+    <div class="stat-card {{ $near_full_boxes > 0 ? 'warning' : 'success' }}">
+        <div class="stat-icon"><i class="fas fa-boxes-stacked"></i></div>
+        <div class="stat-title">Boxes Near Full</div>
+        <div class="stat-value">{{ number_format($near_full_boxes) }}</div>
+        <div class="stat-trend"><i class="fas fa-circle-dot"></i> Storage capacity</div>
+    </div>
+
+    <div class="stat-card {{ $expiring_charts > 0 ? 'warning' : 'info' }}">
+        <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+        <div class="stat-title">Expiring Soon</div>
+        <div class="stat-value">{{ number_format($expiring_charts) }}</div>
+        <div class="stat-trend"><i class="fas fa-circle-dot"></i> Next 30 days</div>
+    </div>
+</div>
+
+{{-- Main Content Grid --}}
+<div class="dashboard-grid">
+
+    {{-- Storage Status --}}
+    <div class="card dashboard-card">
+        <div class="card-header">
+            <span><i class="fas fa-hdd"></i>&ensp;Storage Status</span>
+            <a href="{{ route('admin.storage.index') }}" class="btn btn-secondary btn-sm">
+                Manage <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        @if($drives->isEmpty())
+            <div class="empty-state">
+                <i class="fas fa-hdd empty-state-icon"></i>
+                <h3>No drives configured</h3>
+                <p>Add your first storage drive to get started.</p>
+                <a href="{{ route('admin.storage.create') }}" class="btn btn-primary btn-sm mt-2">
+                    <i class="fas fa-plus"></i> Add Drive
+                </a>
+            </div>
+        @else
+            <div class="card-body">
+                @foreach($drives as $drive)
+                @php 
+                    $pct = $drive->used_percentage; 
+                    $barClass = $pct >= 90 ? 'danger' : ($pct >= 80 ? 'warning' : 'success'); 
+                @endphp
+                <div style="margin-bottom:{{ $loop->last ? '0' : '20px' }}">
+                    <div class="d-flex justify-between align-center mb-1">
+                        <div class="d-flex align-center gap-1">
+                            <strong style="font-size:13.5px; color:var(--text-primary);">{{ $drive->name }}</strong>
+                            @if($drive->is_primary)
+                                <span class="badge badge-info"><i class="fas fa-star"></i> Primary</span>
+                            @endif
+                        </div>
+                        <span class="badge badge-{{ $drive->status === 'active' ? 'success' : 'danger' }}">
+                            {{ ucfirst($drive->status) }}
+                        </span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                        <div class="progress" style="flex:1;">
+                            <div class="progress-bar {{ $barClass }}" style="width:{{ $pct }}%;"></div>
+                        </div>
+                        <span style="font-size:12px; font-weight:600; color:var(--text-muted); min-width:38px; text-align:right;">
+                            {{ $pct }}%
+                        </span>
+                    </div>
+                    <div class="text-muted" style="font-size:12px;">
+                        {{ $drive->used_space_formatted }} / {{ $drive->total_space_formatted }}
+                        @if($drive->last_scanned_at)
+                            &bull; Scanned {{ $drive->last_scanned_at->diffForHumans() }}
+                        @endif
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+
+    {{-- Backup Status --}}
+    <div class="card dashboard-card">
+        <div class="card-header">
+            <span><i class="fas fa-shield-alt"></i>&ensp;Backup Status</span>
+            <a href="{{ route('admin.backup.index') }}" class="btn btn-secondary btn-sm">
+                Manage <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <div class="card-body">
+            @if($last_backup)
+                <div style="margin-bottom:16px;">
+                    <div class="text-muted" style="font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">
+                        Last Backup
+                    </div>
+                    <div class="d-flex align-center justify-between">
+                        <div>
+                            <div style="font-size:13.5px; font-weight:600; color:var(--text-primary);">
+                                {{ $last_backup->start_time->format('M d, Y g:i A') }}
+                            </div>
+                            <div class="text-muted" style="font-size:12px;">
+                                {{ $last_backup->start_time->diffForHumans() }}
+                            </div>
+                        </div>
+                        <span class="badge badge-{{ $last_backup->status === 'success' ? 'success' : 'danger' }}">
+                            <i class="fas fa-{{ $last_backup->status === 'success' ? 'check-circle' : 'exclamation-circle' }}"></i>
+                            {{ ucfirst($last_backup->status) }}
+                        </span>
+                    </div>
+                </div>
+            @else
+                <div style="margin-bottom:16px;">
+                    <div class="text-muted" style="font-size:13px; text-align:center; padding:12px 0;">
+                        <i class="fas fa-info-circle"></i> No backups run yet
+                    </div>
+                </div>
+            @endif
+
+            @if($next_backup)
+                <div style="margin-bottom:16px; padding-top:16px; border-top:1px solid var(--divider);">
+                    <div class="text-muted" style="font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">
+                        Next Scheduled
+                    </div>
+                    <div style="font-size:13.5px; color:var(--text-secondary);">
+                        {{ $next_backup->next_run_at?->format('M d, Y g:i A') ?? 'Not scheduled' }}
+                    </div>
+                </div>
+            @endif
+
+            <div style="padding-top:16px; border-top:1px solid var(--divider);">
+                <div class="text-muted" style="font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">
+                    Recent Activity
+                </div>
+                <div class="d-flex gap-1" style="flex-wrap:wrap;">
+                    @forelse($recent_backup_logs as $log)
+                        <div style="width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+                                    background:var(--{{ $log->status === 'success' ? 'success' : 'danger' }}-light);
+                                    color:var(--{{ $log->status === 'success' ? 'success' : 'danger' }});
+                                    font-size:14px;"
+                             title="{{ $log->start_time->format('M d, Y H:i') }} — {{ ucfirst($log->status) }}">
+                            <i class="fas fa-{{ $log->status === 'success' ? 'check' : 'times' }}"></i>
+                        </div>
+                    @empty
+                        <span class="text-muted" style="font-size:12px;">No recent activity</span>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Recent Archives (from staff dashboard) --}}
+    <div class="card dashboard-card">
+        <div class="card-header">
+            <span><i class="fas fa-history"></i>&ensp;Recent Archives</span>
+            <a href="{{ route('charts.index') }}" class="btn btn-secondary btn-sm">
+                View all <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        @if($recent_archives->isEmpty())
+            <div class="empty-state">
+                <i class="fas fa-inbox empty-state-icon"></i>
+                <h3>No recent archives</h3>
+                <p>Charts you archive will appear here.</p>
+            </div>
+        @else
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Case #</th>
+                        <th>Box</th>
+                        <th>Date</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($recent_archives as $chart)
+                    <tr>
+                        <td>
+                            <a href="{{ route('charts.show', $chart) }}" class="table-link">
+                                {{ $chart->patient->full_name }}
+                            </a>
+                        </td>
+                        <td><code>{{ $chart->case_number }}</code></td>
+                        <td>
+                            @if($chart->physicalLocation)
+                                <span class="badge badge-info">
+                                    <i class="fas fa-box"></i>
+                                    {{ $chart->physicalLocation->box_code }}
+                                </span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="text-muted" style="font-size:12.5px;">
+                                {{ $chart->archived_date->format('M d, Y') }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <a href="{{ route('charts.show', $chart) }}" class="action-btn" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+    {{-- Storage Utilization (from staff dashboard) --}}
+    <div class="card dashboard-card">
+        <div class="card-header">
+            <span><i class="fas fa-chart-simple"></i>&ensp;Storage Utilization</span>
+            <a href="{{ route('reports.box-status') }}" class="btn btn-secondary btn-sm">
+                Full report <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        @if($top_boxes->isEmpty())
+            <div class="empty-state">
+                <i class="fas fa-box-open empty-state-icon"></i>
+                <h3>No boxes configured</h3>
+                <p>Add your first storage box to get started.</p>
+            </div>
+        @else
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Box</th>
+                        <th>Location</th>
+                        <th>Used</th>
+                        <th style="min-width:130px;">Fill Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($top_boxes as $box)
+                    @php
+                        $fp = $box->fill_percentage;
+                        $pc = $fp >= 95 ? 'danger' : ($fp >= 80 ? 'warning' : 'success');
+                    @endphp
+                    <tr>
+                        <td>
+                            <div class="d-flex align-center gap-1">
+                                <strong>{{ $box->box_code }}</strong>
+                                @if($fp >= 95)
+                                    <span class="badge badge-danger">Full</span>
+                                @elseif($fp >= 80)
+                                    <span class="badge badge-warning">Near Full</span>
+                                @endif
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-muted truncate"
+                                  style="font-size:12px; max-width:120px; display:block;">
+                                {{ $box->shelf->room->name }} / {{ $box->shelf->name }}
+                            </span>
+                        </td>
+                        <td style="font-size:12.5px;">
+                            <span class="{{ $pc === 'danger' ? 'text-danger' : ($pc === 'warning' ? 'text-warning' : 'text-success') }}">
+                                {{ $box->current_count }}
+                            </span>
+                            <span class="text-muted">/ {{ $box->capacity }}</span>
+                        </td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div class="progress" style="flex:1;">
+                                    <div class="progress-bar {{ $pc }}" style="width:{{ $fp }}%;"></div>
+                                </div>
+                                <span style="font-size:11.5px; font-weight:600; color:var(--text-muted); min-width:34px; text-align:right;">
+                                    {{ $fp }}%
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+    {{-- Active Checkouts (from staff dashboard) - Full Width --}}
+    <div class="card dashboard-card-full">
+        <div class="card-header">
+            <span><i class="fas fa-clock-rotate-left"></i>&ensp;Active Checkouts</span>
+            <a href="{{ route('checkout.index') }}" class="btn btn-secondary btn-sm">
+                View all <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        @if($active_checkouts->isEmpty())
+            <div class="empty-state">
+                <i class="fas fa-circle-check empty-state-icon"></i>
+                <h3>All charts are checked in</h3>
+                <p>No charts are currently checked out.</p>
+            </div>
+        @else
+            <table class="data-table" data-checkouts-table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Case #</th>
+                        <th>Checked Out</th>
+                        <th>Due Back</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($active_checkouts as $checkout)
+                    @php
+                        $daysOut = $checkout->checked_out_at->diffInDays(now());
+                        $isOverdue = $checkout->is_overdue;
+                    @endphp
+                @if(!$checkout->archivedChart)
+                    @continue
+                @endif
+                <tr class="{{ $isOverdue ? 'checkout-overdue-row' : '' }}">
+                    <td>
+                        <a href="{{ route('charts.show', $checkout->archivedChart) }}" class="table-link">
+                            {{ $checkout->archivedChart->patient?->full_name ?? '(Unknown Patient)' }}
+                        </a>
+                    </td>
+                    <td><code>{{ $checkout->archivedChart->case_number }}</code></td>
+                    <td>
+                        <div style="font-size:12.5px;">
+                            <div class="text-muted">{{ $checkout->checked_out_at->format('M d, Y') }}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">
+                                {{ $checkout->checked_out_at->diffForHumans() }}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        @if($checkout->due_date)
+                            <div style="font-size:12.5px;">
+                                <div class="{{ $isOverdue ? 'text-danger' : 'text-muted' }}">
+                                    {{ $checkout->due_date->format('M d, Y') }}
+                                </div>
+                                @if($isOverdue)
+                                    <div class="text-danger" style="font-size:11px; font-weight:600;">
+                                        {{ $checkout->due_date->diffForHumans() }}
+                                    </div>
+                                @endif
+                            </div>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </td>
+                        <td>
+                            @if($isOverdue)
+                                <span class="badge badge-danger">
+                                    <i class="fas fa-exclamation-circle"></i> Overdue
+                                </span>
+                            @else
+                                <span class="badge badge-success">
+                                    <i class="fas fa-circle-check"></i> Active
+                                </span>
+                            @endif
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <a href="{{ route('checkout.show', $checkout) }}" class="action-btn" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+    {{-- User Activity - Full Width --}}
+    <div class="card dashboard-card-full">
+        <div class="card-header">
+            <span><i class="fas fa-users"></i>&ensp;User Activity</span>
+            <a href="{{ route('admin.users.index') }}" class="btn btn-secondary btn-sm">
+                Manage users <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        @if($active_users->isEmpty())
+            <div class="empty-state">
+                <i class="fas fa-user-slash empty-state-icon"></i>
+                <h3>No active users</h3>
+                <p>Create your first user account to get started.</p>
+                <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm mt-2">
+                    <i class="fas fa-user-plus"></i> Add User
+                </a>
+            </div>
+        @else
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Last Active</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($active_users as $user)
+                    <tr>
+                        <td>
+                            <div class="d-flex align-center gap-1">
+                                <div class="user-avatar" style="width:32px; height:32px; border-radius:50%; background:var(--accent-light); 
+                                     color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;">
+                                    {{ strtoupper(substr($user->name, 0, 1)) }}
+                                </div>
+                                <div>
+                                    <div style="font-weight:600; font-size:13px; color:var(--text-primary);">
+                                        {{ $user->name }}
+                                    </div>
+                                    <div class="text-muted" style="font-size:11.5px;">
+                                        {{ $user->email }}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ $user->role === 'admin' ? 'info' : 'secondary' }}">
+                                <i class="fas fa-{{ $user->role === 'admin' ? 'user-shield' : 'user' }}"></i>
+                                {{ ucfirst($user->role) }}
+                            </span>
+                        </td>
+                        <td>
+                            @if($user->last_login_at)
+                                <div style="font-size:12.5px;">
+                                    <div class="text-muted">{{ $user->last_login_at->format('M d, Y') }}</div>
+                                    <div style="font-size:11px; color:var(--text-muted);">
+                                        {{ $user->last_login_at->diffForHumans() }}
+                                    </div>
+                                </div>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ $user->is_active ? 'success' : 'danger' }}">
+                                {{ $user->is_active ? 'Active' : 'Inactive' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <a href="{{ route('admin.users.edit', $user) }}" class="action-btn" title="Edit">
+                                    <i class="fas fa-pencil"></i>
+                                </a>
+                                <a href="{{ route('admin.users.login-history', $user) }}" class="action-btn" title="Login History">
+                                    <i class="fas fa-clock-rotate-left"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+</div>
+
+@endsection
+
+@push('styles')
+<style>
+    /* ── Dashboard Grid ─────────────────────────────────────────────────── */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .dashboard-card {
+        margin-bottom: 0;
+    }
+
+    .dashboard-card-full {
+        grid-column: span 2;
+        margin-bottom: 0;
+    }
+
+    /* ── Table link ─────────────────────────────────────────────────────── */
+    .table-link {
+        font-weight: 600;
+        color: var(--accent);
+        text-decoration: none;
+        transition: color var(--transition);
+    }
+
+    .table-link:hover {
+        color: var(--accent-hover);
+        text-decoration: underline;
+    }
+
+    /* ── Overdue row tint ───────────────────────────────────────────────── */
+    .checkout-overdue-row {
+        background: color-mix(in srgb, var(--danger-light) 40%, transparent);
+    }
+
+    .checkout-overdue-row:hover {
+        background: color-mix(in srgb, var(--danger-light) 65%, transparent) !important;
+    }
+
+    /* ── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .dashboard-card-full {
+            grid-column: span 1;
+        }
+    }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+    // Auto-refresh active checkouts every 60s
+    let autoRefreshInterval;
+
+    function startAutoRefresh() {
+        autoRefreshInterval = setInterval(() => {
+            fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.text())
+                .then(html => {
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newTbody = doc.querySelector('[data-checkouts-table] tbody');
+                    const curTbody = document.querySelector('[data-checkouts-table] tbody');
+                    if (newTbody && curTbody) curTbody.innerHTML = newTbody.innerHTML;
+                })
+                .catch(() => {});
+        }, 60000);
+    }
+
+    @if(!$active_checkouts->isEmpty())
+        const parser = new DOMParser();
+        startAutoRefresh();
+    @endif
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearInterval(autoRefreshInterval);
+        } else if (@json(!$active_checkouts->isEmpty())) {
+            startAutoRefresh();
+        }
+    });
+</script>
+@endpush
